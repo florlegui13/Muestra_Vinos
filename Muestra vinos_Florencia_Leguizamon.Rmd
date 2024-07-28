@@ -1,0 +1,565 @@
+---
+title: "Analisis de vinos"
+output: html_document
+date: "2024-07-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(readr)
+
+calidad_vinos <- read_delim("calidad_vinos.csv", delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+calidad_vinos
+
+View(calidad_vinos)
+```
+
+## Muestreo Estartificado 
+
+```{r}
+library(dplyr)
+
+set.seed(531)
+muestra_vinos <- calidad_vinos%>%
+  group_by(variedad)%>%
+   sample_frac(size = 2000 / nrow(calidad_vinos))
+
+muestra_vinos
+
+total_observations <- nrow(muestra_vinos)
+print(total_observations)  
+```
+## Test de Hipotesis 
+
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(BSDA)
+library(car)
+library(datarium)
+library(reshape2)
+library(openintro) 
+library(RVAideMemoire)
+library(dplyr)
+library(car)
+library(stats)
+
+
+View(muestra_vinos) 
+unique(muestra_vinos$variedad)
+colnames(muestra_vinos)
+
+
+muestra_vinos_blanco <- muestra_vinos %>%
+  filter(variedad == 'blanco') %>%
+  pull(`densidad`)
+
+muestra_vinos_tinto <- muestra_vinos %>%
+  filter(variedad == 'tinto') %>%
+  pull(`densidad`)
+
+head(muestra_vinos_blanco)
+head(muestra_vinos_tinto)
+
+shapiro.test(muestra_vinos_blanco)
+qqPlot(muestra_vinos_blanco)
+
+shapiro.test(muestra_vinos_tinto)
+qqPlot(muestra_vinos_tinto)
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+levene_test <- leveneTest(`densidad` ~ `variedad`, data = muestra_vinos)
+
+levene_test
+
+
+resultado_ttest <- t.test(muestra_vinos_tinto, muestra_vinos_blanco, var.equal = TRUE, alternative = "two.sided")
+
+
+resultado_ttest
+
+
+resultado_wilcox <- wilcox.test(muestra_vinos_tinto, muestra_vinos_blanco)
+
+resultado_wilcox
+```
+Resumen del Análisis
+Pruebas de Normalidad (Shapiro-Wilk)
+Vinos Blancos:
+
+Resultado: ( W = 0.97936 ), ( p )-valor = ( 6.711 \times 10^{-14} )
+Interpretación: Los datos de densidad de los vinos blancos no siguen una distribución normal.
+Vinos Tintos:
+
+Resultado: ( W = 0.99399 ), ( p )-valor = 0.04888
+Interpretación: Los datos de densidad de los vinos tintos no siguen una distribución normal.
+Prueba de Homogeneidad de Varianzas (Levene)
+Resultado: ( p )-valor = ( 2.2 \times 10^{-16} )
+Interpretación: Las varianzas de las densidades de los vinos blancos y tintos no son iguales.
+Prueba t de Dos Muestras (Two Sample t-test)
+Resultados:
+t = 19.151
+df = 1998
+( p )-valor < ( 2.2 \times 10^{-16} )
+Intervalo de confianza al 95%: [0.002426773, 0.002980510]
+Medias:
+Vino Tinto: 0.9967582
+Vino Blanco: 0.9940545
+Interpretación: Hay una diferencia significativa en las medias de densidad entre los vinos tintos y blancos.
+Prueba de Wilcoxon Rank Sum (Mann-Whitney U)
+Resultados:
+W = 573138
+( p )-valor < ( 2.2 \times 10^{-16} )
+Interpretación: Hay una diferencia significativa en las distribuciones de densidad entre los vinos tintos y blancos.
+Conclusión
+El uso del t-test ajustado para muestras grandes es apropiado en este caso, especialmente porque:
+
+Tienes un tamaño de muestra grande (n > 30), lo cual justifica el uso del t-test debido al Teorema Central del Límite.
+A pesar de la no normalidad (confirmada por los tests de Shapiro-Wilk) y varianzas desiguales (confirmadas por el test de Levene), el t-test puede ser robusto con tamaños de muestra grandes.
+El Wilcoxon Rank Sum Test es útil para confirmar los resultados del t-test, ya que no hace suposiciones sobre la distribución de los datos y es menos sensible a la desigualdad de varianzas.
+Ambos tests, el Two Sample t-test y el Wilcoxon Rank Sum Test, sugieren que hay una diferencia significativa en la densidad entre los vinos tintos y blancos.
+```
+## Analisis de regresion multiple
+```{r} 
+
+
+muestra_vinos
+
+library(corrplot)
+library(tidymodels)
+library(dplyr)
+library(tidyverse)
+library(BSDA)
+library(car)
+library(datarium)
+library(reshape2)
+library(openintro) 
+library(RVAideMemoire)
+library(dplyr)
+library(car)
+library(stats)
+library(class)
+library(rsample)
+
+muestra_vinos_numericas <- muestra_vinos %>%
+  select_if(is.numeric)
+
+muestra_vinos_numericas <- muestra_vinos_numericas[, !names(muestra_vinos_numericas) %in% "variedad"]
+correlaciones <- cor(muestra_vinos_numericas)
+correlaciones
+corrplot(correlaciones, method = "number")
+
+colnames(muestra_vinos)
+
+library(ggplot2)
+library(car)
+library(dplyr)
+library(rsample)
+
+# Establecer la semilla para la reproducibilidad
+set.seed(531)
+
+# Seleccionar las columnas relevantes
+df_vinos <- muestra_vinos %>%
+  select(alcohol, densidad, `azúcar residual`)
+
+# Dividir el data frame en conjunto de entrenamiento y prueba
+df_split_vinos <- initial_split(df_vinos, prop = 0.8)
+
+df_train_vinos <- training(df_split_vinos)
+df_test_vinos <- testing(df_split_vinos)
+
+# Imprimir el tamaño del conjunto de entrenamiento
+paste0("Total del dataset de entrenamiento: ", nrow(df_train_vinos))
+
+# Ajustar el modelo de regresión múltiple
+modelo <- lm(alcohol ~ densidad + `azúcar residual`, data = df_train_vinos)
+
+
+# Resumen del modelo
+summary(modelo)
+
+# Calcular residuos y predicciones
+residuos <- resid(modelo)
+residuos_estandarizados <- rstandard(modelo)
+predichos <- predict(modelo)
+
+# Combinar los resultados en un solo data frame
+resultados <- cbind(df_train_vinos, predichos = predichos, residuos = residuos, residuos_estandarizados = round(residuos_estandarizados, 2))
+
+shapiro.test(resid(modelo))
+
+# Ver los primeros registros del data frame combinado
+head(resultados)
+
+# Evaluar los supuestos del modelo
+# 1. LINEARIDAD
+plot(df_train_vinos$densidad, residuos, main = "Densidad vs. Residuales", xlab = "Densidad", ylab = "Residuales")
+abline(h = 0, col = "red")
+
+plot(df_train_vinos$`azúcar residual`, residuos, main = "Azúcar Residual vs. Residuales", xlab = "Azúcar Residual", ylab = "Residuales")
+abline(h = 0, col = "red")
+
+# 2. Homoscedasticity
+plot(predichos, residuos, main = "Valores Ajustados vs. Residuales", xlab = "Valores Ajustados", ylab = "Residuales")
+abline(h = 0, col = "red")
+
+# 3. Normality of residuals
+qqnorm(residuos, main = "Q-Q Plot de los Residuales")
+qqline(residuos, col = "red")
+
+# 4. Multicollinearity
+vif(modelo)  # Verificar el Factor de Inflación de la Varianza
+
+# Visualize the relationship between predictors and the dependent variable
+ggplot(data = df_train_vinos, aes(x = densidad, y = alcohol)) +
+  geom_point() +
+  geom_smooth(method = "lm", col = "blue", se = FALSE) +
+  labs(title = "Relación entre Densidad y Alcohol", x = "Densidad", y = "Alcohol")
+
+ggplot(data = df_train_vinos, aes(x = `azúcar residual`, y = alcohol)) +
+  geom_point() +
+  geom_smooth(method = "lm", col = "blue", se = FALSE) +
+  labs(title = "Relación entre Azúcar Residual y Alcohol", x = "Azúcar Residual", y = "Alcohol")
+
+# Evaluate the model on the test set
+predicciones_test <- predict(modelo, df_test_vinos)
+
+# Calculate the Mean Absolute Error (MAE)
+mae <- mean(abs(predicciones_test - df_test_vinos$alcohol))
+paste0("Error absoluto medio (MAE): ", round(mae, 3))
+
+
+```
+```
+1. *Densidad como Predictor Significativo*:
+   - La densidad resultó ser un predictor altamente significativo del contenido de alcohol en los vinos, con un valor p < 0.001. Esto sugiere una fuerte relación inversa entre la densidad y el contenido de alcohol: a medida que la densidad aumenta, el contenido de alcohol tiende a disminuir.
+
+2. *Azúcar Residual no Significativo*:
+   - A pesar de que el azúcar residual se incluyó en el modelo, no mostró ser un predictor significativo del contenido de alcohol (p = 0.267). Esto indica que, al menos en esta muestra, el nivel de azúcar residual no tiene una relación estadísticamente significativa con el contenido de alcohol, sin embargo se incluyo ya que no hubo otra variable que sea significativa y teoricamente el alcohol y el azucar tienen relacion.
+
+3. *Evaluación del Modelo*:
+   - La evaluación de los residuos del modelo mostró que los supuestos de linealidad, homocedasticidad y normalidad de los residuos se cumplen razonablemente bien.
+   - El análisis del Factor de Inflación de la Varianza (VIF) indicó que no hay problemas de multicolinealidad significativos entre los predictores seleccionados.
+
+4. *Precisión del Modelo*:
+   - El modelo mostró un Error Absoluto Medio (MAE) de 0.629 en el conjunto de prueba, lo que sugiere que el modelo tiene una precisión razonable para predecir el contenido de alcohol basado en las variables seleccionadas.
+
+### Implicaciones
+
+Estos resultados tienen varias implicaciones importantes para la industria vitivinícola y para futuros estudios:
+
+  - La densidad puede ser utilizada como un indicador rápido y práctico del contenido de alcohol durante el proceso de producción del vino, permitiendo ajustes y controles de calidad más eficientes.
+  
+
+### Limitaciones
+
+- *Muestra Limitada*:
+  - Aunque la muestra de 2000 observaciones es considerable, podría no ser representativa de todas las regiones vitivinícolas o de todas las variedades de vino.
+  
+
+### Conclusión Final
+
+En resumen, este análisis de regresión múltiple proporciona una visión valiosa sobre los factores que afectan el contenido de alcohol en los vinos. La densidad se destaca como un predictor clave, mientras que el azúcar residual no mostró ser significativo. 
+
+```
+# Analisis discriminante: variedad
+
+```{r}
+
+library(MASS)
+library(car)
+library(rattle)
+library(GGally)
+library(mvnormtest)
+library(MVN)
+library(tidyverse)
+library(tidymodels)
+library(factoextra)
+library(mvShapiroTest)
+library(biotools)
+library(MASS)
+library(klaR)
+library(discrim)
+library(dplyr)
+library(biotools)
+
+ggpairs(muestra_vinos, 
+        legend = 1, 
+        columns = 1:5, 
+        aes(color = variedad, alpha = 0.5),
+        upper = list(continuous = "points"))+
+  theme(legend.position = "bottom")
+
+muestra_vinosf <- muestra_vinos[, !names(muestra_vinos) %in% "calidad"]
+
+set.seed(531)
+
+df_split <- initial_split(muestra_vinosf,
+                          prop = 0.80,
+                          strata = variedad)
+
+df_train <- df_split |> 
+              training() |> 
+              mutate(across(where(is.numeric), scale))
+
+df_test <- df_split |> 
+              testing()|> 
+              mutate(across(where(is.numeric), scale))
+
+blanco<- subset(df_train[,2:5], df_train$variedad == "blanco")
+tinto<- subset(df_train[,2:5], df_train$variedad == "tinto")
+
+mvShapiro.Test(as.matrix(blanco))
+mvShapiro.Test(as.matrix(tinto))
+
+View(df_train)
+
+df_train$variedad <- as.factor(df_train$variedad)
+
+df_numeric <- df_train[, !names(df_train) %in% "variedad"]
+
+result <- boxM(df_numeric, df_train$variedad)
+
+print(result)
+
+# Número de datos en test y train
+paste0("Total del dataset de entrenamiento: ", nrow(df_train))
+
+wine.lda <- lda(variedad ~ ., data=df_train)
+
+print(wine.lda)
+
+predictions <- wine.lda |>  
+                predict(df_test)
+predictions
+
+predictions2 <- wine.lda |>  
+                predict(df_train)
+predictions2
+
+true_classes <- df_test$variedad
+
+true_classes_train <- df_train$variedad
+
+confusion_matrix <- table(Predicted = predictions$class, Actual = true_classes)
+print(confusion_matrix)
+
+confusion_matrix2 <- table(Predicted = predictions2$class, Actual = true_classes_train)
+print(confusion_matrix2)
+
+table(df_train$variedad)
+table(df_test$variedad)
+
+"Análisis discriminante cuadrático (QDA)"
+
+model_qda <- qda(variedad ~ ., df_train)
+model_qda
+
+
+qda(variedad ~ ., data = df_train)
+
+table(predict(model_qda,type="class")$class,df_train$variedad)
+
+lda.test_qda <- predict(model_qda,df_test)
+df_test$qda <- lda.test_qda$class
+table(df_test$qda,df_test$variedad)
+
+
+```
+```
+
+Análisis Discriminante Lineal (LDA)
+El análisis discriminante lineal (LDA) es una técnica de clasificación que asume que las clases tienen distribuciones normales multivariadas con la misma matriz de covarianzas. En el contexto de este análisis, LDA presenta varias limitaciones:
+
+Supuestos No Cumplidos:
+
+Normalidad Multivariada: LDA asume que las variables predictoras siguen una distribución normal multivariada dentro de cada clase. Sin embargo, los tests de Shapiro-Wilk realizados previamente indicaron que los datos de densidad de los vinos no siguen una distribución normal.
+
+Homogeneidad de Varianzas-Covarianzas: LDA asume que las matrices de covarianzas de las clases son iguales. El test de Levene mostró que las varianzas de las densidades de los vinos blancos y tintos son significativamente diferentes, lo que viola este supuesto.
+Rendimiento:
+
+La matriz de confusión para LDA mostró que el modelo clasifica incorrectamente todos los vinos tintos como blancos. Esto se debe a la incapacidad del modelo para manejar la estructura de varianza desigual y la falta de normalidad multivariada.
+Exactitud Global: ( 75.4% ) (clasifica incorrectamente todos los vinos tintos).
+Análisis Discriminante Cuadrático (QDA)
+El análisis discriminante cuadrático (QDA) es una extensión de LDA que no asume la igualdad de las matrices de covarianzas. Este método es más flexible y puede manejar datos con estructuras más complejas y varianzas desiguales entre las clases:
+
+Ventajas:
+
+No Asume Igualdad de Varianzas: A diferencia de LDA, QDA permite que cada clase tenga su propia matriz de covarianzas, lo que lo hace más adecuado para datos con varianzas desiguales.
+Mejor Capacidad de Clasificación: La matriz de confusión para QDA mostró que el modelo clasifica correctamente una mayor proporción de vinos tintos, lo que indica que QDA puede manejar mejor la estructura de los datos en este contexto.
+Rendimiento:
+
+La matriz de confusión para QDA mostró una mejor clasificación de los vinos tintos en comparación con LDA.
+
+Exactitud Global: ( 88.1% ) (clasifica correctamente una mayor proporción de vinos tintos). 
+
+LDA: Aunque es una técnica poderosa cuando se cumplen sus supuestos, en este caso, LDA no es adecuado debido a la violación de los supuestos de normalidad multivariada y homogeneidad de varianzas. Esto resultó en una clasificación incorrecta de todos los vinos tintos como blancos.
+
+QDA: Es más adecuado para este conjunto de datos, ya que no asume igualdad de varianzas y puede manejar mejor la estructura de los datos. QDA mostró una mayor exactitud global y una mejor capacidad para clasificar los vinos tintos correctamente.
+
+En resumen, para este conjunto de datos de vinos, el análisis discriminante cuadrático (QDA) es claramente superior al análisis discriminante lineal (LDA) debido a su flexibilidad y capacidad para manejar varianzas desiguales y estructuras de datos más complejas.
+```
+#Metodo de clasificacion supervisado
+
+```{r}
+
+library(mlr)
+library(BSDA)
+library(viridisLite)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(nortest)
+library(ggforce)
+library(devtools)
+library(geoR)
+library(mvnormtest)
+library(MASS)
+library(e1071)
+library(nnet)
+library(cluster)
+library(gridExtra)
+library(cowplot)
+library(ggpubr)
+library(scatterplot3d)  
+library(biotools)
+library(DescTools)
+library(car)
+library(knitr)
+library(magrittr)
+library(tidyr)
+library(class)
+library(rsample)
+library(dplyr)
+library(class)
+library(rsample)
+library(dplyr)
+library(tidyverse)
+library(caret)
+library(pROC)
+library(ggplot2)
+
+
+# Establecer semilla para reproducibilidad
+set.seed(531)
+
+# Dividir el conjunto de datos en entrenamiento y prueba
+df_split <- initial_split(muestra_vinosf, prop = 0.80, strata = variedad)
+
+df_train <- df_split |> 
+              training() |> 
+              mutate(across(where(is.numeric), scale))
+
+df_test <- df_split |> 
+              testing() |> 
+              mutate(across(where(is.numeric), scale))
+
+df_train$variedad <- as.factor(df_train$variedad)
+
+df_test$variedad <- as.factor(df_test$variedad)
+
+ 
+
+modelo <- glm(variedad ~ ., data = df_train, family = binomial)
+
+summary(modelo)
+
+ 
+predicciones <- predict(modelo, df_test, type = "response")
+
+ 
+
+predicciones_clase <- ifelse(predicciones > 0.5, "tinto", "blanco")
+
+ 
+
+predicciones_clase <- as.factor(predicciones_clase)
+
+ 
+
+confusionMatrix(predicciones_clase, df_test$variedad)	
+
+
+modelo <- glm(variedad ~ ., data = df_train, family = binomial)
+
+ 
+
+predicciones <- predict(modelo, df_test, type = "response")
+
+ 
+roc_obj <- roc(df_test$variedad, predicciones)
+
+ 
+
+auc(roc_obj)
+
+ 
+roc_data <- data.frame(
+
+  tpr = roc_obj$sensitivities,  
+
+  fpr = roc_obj$specificities   
+
+)
+
+
+ggplot(roc_data, aes(x = 1 - fpr, y = tpr)) +
+
+  geom_line(color = "blue") +
+
+  geom_abline(linetype = "dashed", color = "red") +
+
+  labs(title = "Curva ROC",
+
+       x = "Tasa de Falsos Positivos (1 - Specificity)",
+
+       y = "Tasa de Verdaderos Positivos (Sensitivity)") +
+
+  theme_minimal()
+
+```
+Análisis de Resultados de la Regresión Logística y Comparación con QDA
+
+Metodología
+
+Se utilizó la regresión logística para clasificar la variedad de vino (blanco o tinto) utilizando un conjunto de datos de vinos. Para evaluar el rendimiento del modelo, los datos fueron divididos en un conjunto de entrenamiento (80%) y un conjunto de prueba (20%). Las variables predictoras fueron escaladas para asegurar que todas tuvieran la misma escala.
+
+Resultados del Modelo de Regresión Logística
+El modelo de regresión logística fue ajustado utilizando todas las variables predictoras. Sin embargo, el resumen del modelo mostró que ninguna de las variables tenía un efecto significativo en la predicción de la variedad de vino, como se refleja en los p-valores extremadamente altos (1) para todas las variables.
+
+Exactitud: 75.42%
+Sensibilidad: 100%
+Especificidad: 0%
+Valor Predictivo Positivo: 75.42%
+Valor Predictivo Negativo: Indeterminado (NaN)
+Balanced Accuracy: 50%
+Análisis de la Curva ROC
+La curva ROC obtenida para el modelo de regresión logística mostró un área bajo la curva (AUC) de 0.5032, lo que indica un rendimiento apenas mejor que el azar.
+
+Interpretación de los Resultados
+Los resultados de la regresión logística indican que el modelo tiene una alta sensibilidad (100%), clasificando correctamente a todos los vinos blancos. Sin embargo, falla en clasificar correctamente los vinos tintos.
+
+COMPARACION CON QDA
+
+Precisión: El modelo QDA tiene una mayor precisión (83,5%) en los datos de prueba en comparación con el modelo de regresión logística (75,4%).
+Sensibilidad: la regresión logística tiene una sensibilidad perfecta para la clase "blanco", lo que significa que identifica correctamente todas las instancias de "blanco". Sin embargo, esto tiene el costo de no identificar correctamente ninguna de las instancias "tintas".
+Especificidad: QDA tiene una alta especificidad del 91,3%, lo que significa que es mucho mejor en la identificación de instancias "tinto" en comparación con la regresión logística
+
+```
+
+
+
+
+
+
+
+
+
